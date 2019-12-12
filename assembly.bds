@@ -13,7 +13,7 @@ for( int i=434 ; i <= 535 ; i++ ) {
     string sample_1 = "data/reads/sar"+i+"-2019_S"+s+"_L001_R1_001.fastq.gz"
     string sample_2 = "data/reads/sar"+i+"-2019_S"+s+"_L001_R2_001.fastq.gz"
     #string command = "sw/TrimGalore-0.6.5/trim_galore --paired " + sample_1 + " " + sample_2
-    sys sw/TrimGalore-0.6.5/trim_galore --paired $sample_1 $sample_2
+    sys sw/TrimGalore-0.6.5/trim_galore --paired $sample_1 $sample_2 --output_dir data/clean/
     s = s + 1
 }
 
