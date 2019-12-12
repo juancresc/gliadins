@@ -1,0 +1,20 @@
+#!/usr/bin/env bds
+
+string adapters = "data/adapters_new_rc.fa"
+
+
+sys export PATH=$PATH:$PWD/sw/SPAdes-3.13.0-Linux/bin
+sys export PATH=$PATH:$PWD/sw/.bds
+sys export PATH=$PATH:$PWD/sw/cutadapt-2.7
+sys export PATH=$PATH:$PWD/sw/FastQC
+
+int s = 86
+for( int i=434 ; i <= 535 ; i++ ) {
+    string sample_1 = "data/reads/sar"+i+"-2019_S"+s+"_L001_R1_001.fastq.gz"
+    string sample_2 = "data/reads/sar"+i+"-2019_S"+s+"_L001_R2_001.fastq.gz"
+    #string command = "sw/TrimGalore-0.6.5/trim_galore --paired " + sample_1 + " " + sample_2
+    sys sw/TrimGalore-0.6.5/trim_galore --paired $sample_1 $sample_2
+    s = s + 1
+}
+
+#sys sw/TrimGalore-0.6.5/trim_galore --paired 
