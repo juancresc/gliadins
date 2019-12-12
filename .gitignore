@@ -3,3 +3,4 @@ out
 sw/
 *.chp
 assembly.bds*
+bds.pid.*

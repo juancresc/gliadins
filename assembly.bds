@@ -8,12 +8,15 @@ sys export PATH=$PATH:$PWD/sw/.bds
 sys export PATH=$PATH:$PWD/sw/cutadapt-2.7
 sys export PATH=$PATH:$PWD/sw/FastQC
 
+
 int s = 86
 for( int i=434 ; i <= 535 ; i++ ) {
     string sample_1 = "data/reads/sar"+i+"-2019_S"+s+"_L001_R1_001.fastq.gz"
     string sample_2 = "data/reads/sar"+i+"-2019_S"+s+"_L001_R2_001.fastq.gz"
     try{
         sys sw/TrimGalore-0.6.5/trim_galore --paired $sample_1 $sample_2 --output_dir data/clean/
+    }catch (Exception e){
+        print "error in $sample_1 $sample_2\n"
     }
     
 
@@ -21,10 +24,16 @@ for( int i=434 ; i <= 535 ; i++ ) {
     string sample_2_ = "data/clean/sar"+i+"-2019_S"+s+"_L001_R2_001_val_2.fq.gz"
     try{
         sys sw/TrimGalore-0.6.5/trim_galore --fastqc --paired $sample_1_ $sample_2_ --output_dir data/clean_2/ -a AATGATACGGCGACCACCGAGATCTACAC -a CAAGCAGAAGACGGCATACGAGAT
+    }catch (Exception e){
+        print "error in $sample_1_ $sample_2_\n"
     }
+
+    string sample_1_clean = "data/clean_2/sar"+i+"-2019_S"+s+"_L001_R1_001_val_1_val_1.fq.gz"
+    string sample_2_clean = "data/clean_2/sar"+i+"-2019_S"+s+"_L001_R2_001_val_2_val_2.fq.gz"
+    string sample_out = "data/assembly/sar" + i + "-2019_S" + s + "/"
     
-    
+    sys sw/SPAdes-3.13.0-Linux/bin/spades.py -1 $sample_1_clean -2 $sample_2_clean -o $sample_out
+
+
     s = s + 1
 }
-
-#sys sw/TrimGalore-0.6.5/trim_galore --paired 
