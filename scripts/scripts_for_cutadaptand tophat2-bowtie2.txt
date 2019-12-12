@@ -1,0 +1,280 @@
+
+# the comments I made today are marked 10dic19
+#here and there   I left some old comments in italian (maybe better tha nothing)
+
+# known  R libraries  to load = biostrings, stringr    #10dic19 
+#you need to have installed cutadapat and fastQC 
+
+# ---10dic19 start from MODIFIED contaminats file as found  in downloaded fastQC folderconfiguration folder   modified by yourself by  deleting initial # lines and replacing all spaces in ids in the text with _  and all  \t\t with  \t , ( i DID IT ONCE WITH GEDIT, I can no longer track the modified file so you have  modify it yourself)
+ 
+import_contam_fastqc= read.table('/home/paolo/Documents/FASTQC/FastQC/Configuration/contaminant_list_fastqc11_mod_no_spazi_pao_014.txt',
+                                 header=F,sep="\t",   stringsAsFactors=F)
+str(import_contam_fastqc)
+names(import_contam_fastqc)= c("ID_contam", "seq")
+library (Biostrings)
+
+#####------ trasform DF CONTAMINANTs  in  R  DNAStringSet 
+
+
+DSS_contam_da_fastQC= DNAStringSet(import_contam_fastqc$seq)
+names(DSS_contam_da_fastQC)=import_contam_fastqc$ID_
+ 
+
+######------------ -rigeneriamo ID con spazi come originario nei database fastQC  per poter cercare gli ID nell'output fastQC
+
+ID_contam_con_spazi = chartr("_", " ",import_contam_fastqc$ID_)
+
+#---------------------------------
+##---- catturo tutti fastqc outputs e cerco tutti gli ID dei contaminants inclusi nel database di fastQC e se sono presenti li accumulo in un DF   
+##---(eliminare eventuali fastQC reports fatti in precedenza senno' riconosce multiple fastQC reports)
+#----------------------------------
+files_fastQC_output=NULL
+
+files_fastQC_output =list.files(path= dir_campioni  ,pattern="^fastqc_data.txt$",recursive=T, full.names=T)
+
+
+filo=NULL
+accu_filo= NULL
+accu_linea_con_CONTAM =NULL
+accu_ID_contam= NULL
+DF_accu_hits=NULL
+ 
+
+
+for (filo  in files_fastQC_output)  ###---------------------- loopiamo sugli outputs generati
+  
+{ 
+  cat(filo, "\n")
+  output_fastQC= readLines(filo)
+  
+  for (ID_contam  in  ID_contam_con_spazi)          #-------------loopiamo sugli ID contam
+  {     
+    linea_con_CONTAM=grep(pattern=paste(ID_contam," ", sep=""),x=output_fastQC, value=T)
+    
+    
+    if  (any(grepl(pattern=paste(ID_contam," ", sep=""),x=output_fastQC ) ==T))
+      
+    {
+      accu_ID_contam=c(accu_ID_contam,ID_contam)
+      accu_filo=c (  accu_filo, filo)
+      accu_linea_con_CONTAM =c(  accu_linea_con_CONTAM, paste(linea_con_CONTAM, collapse=" -- "))
+      
+      cat ("ID_contam= ",ID_contam,"\n", "file= ", filo, "\n",  "CONTAM= ", paste(linea_con_CONTAM, collapse=" -- "), "-\n\n------\n\n")
+    }
+  }
+  
+}
+
+
+DF_accu_hits =data.frame (accu_filo=accu_filo,
+                          accu_ID_contam=accu_ID_contam,
+                          accu_linea_con_CONTAM=accu_linea_con_CONTAM , stringsAsFactors=F)
+
+str(DF_accu_hits)
+
+nrow(DF_accu_hits)
+
+head(DF_accu_hits)
+DF_accu_hits$accu_ID_contam
+
+###---------------  a questo punto la colonna  DF_accu_hits$accu_ID_  contiene gli ID degli adapter trovati  
+
+##------------------- unicizziamo e verifichimo che ci siano
+unique(chartr(old=" ", new="_", DF_accu_hits$accu_ID_))  %in% import_contam_fastqc$ID
+
+ 
+### ----creation of cutadapter config file based on found adapters  ------10dic19
+####------------------------   
+####---------------- 
+
+#i contaminanti unici sono in:
+u_ID_contam =unique(DF_accu_hits$accu_ID)
+
+# reintroduciamo gli underscore per trovare gli ID nel DSS
+u_ID_contam_NOSPAZI = chartr(" ", "_",u_ID_contam)
+### ID contam da tagliare (NB ID)
+
+ID_contam_scelti_da_trimm =as.character(DSS_contam_da_fastQC[names(DSS_contam_da_fastQC) %in% u_ID_contam_NOSPAZI])
+
+
+contam_scelti= as.character(ID_contam_scelti_da_trimm) 
+
+#-------  ora generiamo file config cutadapt scegliamo 10 
+
+ora= chartr(":", ".", paste( unlist(strsplit(format(Sys.time(), "%a %b %d %H:%M:%S %Y")," ")), collapse="_"))
+
+
+file_config_cutadapt_da_creare = paste( dir_campioni,"/",
+                                        ora,"_CONTAM_per_cutadapt.txt",sep="")
+
+cat(file=file_config_cutadapt_da_creare,
+    paste("--anywhere=", contam_scelti , "\n",sep=""))
+
+
+
+#### --------------- NB mais 20 giu 014  scelgo di fare sola 1 run repeat
+cat(file=file_config_cutadapt_da_creare, 
+    "--error-rate=0.1\n",
+    "--times=1\n",
+    "--minimum-length=30\n",
+    "--overlap=10\n",
+    "--quality-cutoff=10\n",
+    append=T)
+
+library(stringr)
+
+ 
+
+############## -----
+############## ----- -----------------    start trimming  loop    10dic19
+ 
+
+ 
+
+TUTTI_files= NULL
+TUTTI_files =list.files(path= dir_campioni   , pattern=".fastQ$", full.names=T,recursive =T)
+ 
+
+for (file_input_fastQ in TUTTI_files)
+  
+{
+  file_ouput_fastQ=str_replace(file_input_fastQ, ".fastQ", "_CTDPT.fastQ")
+  cmd= (paste("\ncutadapt $(<",file_config_cutadapt_da_creare,") ",
+              file_input_fastQ,"  --output=",
+              file_ouput_fastQ, "   2>&1 | tee  ", file_ouput_fastQ, "_REPORT_CTDPT\n",  
+              sep=""))
+  
+  
+  ## generiamo nome file e file per il bash script
+  
+  ora= chartr(":", ".", paste( unlist(strsplit(format(Sys.time(), "%a %b %d %H:%M:%S %Y")," ")), collapse="_"))
+  
+  nome_file_bash_cutadapt=paste(dir_campioni,"/",
+                                ora,"_bash_script_cutadapt.sh",sep="")
+  
+  cat (file =nome_file_bash_cutadapt , cmd, append=T)
+  
+  
+}
+
+
+
+
+# run the bash in shell  10dic19
+e.g.
+
+bash  /media/TOSHIBA/MAIS_BERGAMO_test2/Tue_Jun_24_15.05.32_2014_bash_script_cutadapt.sh
+ 
+
+
+
+
+## in case you want to use here I add the commands made with R to run bowtie2 via tophat2 with different mismatch tolarances
+
+
+##########################################################
+###########################################################################
+########################################################################################
+#########################################################################################################
+#####################################################################################################################
+
+
+
+
+
+export PATH=/usr/bin/jre1.8.0_144/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/home/paolo/Documenti/SAMTOOLS/samtools-0.1.19:/home/paolo/Documenti/BOWTIE2/bowtie2-2.2.7:/home/paolo/Documenti/TOPHAT2/tophat-2.1.1.Linux_x86_64
+
+#these settings are not to exceed RAM with such large genomes 
+bowtie2-build  --threads 1  --noauto  --packed   /home/paolo/Documenti/BOWTIE2/bowtie2-2.2.7/INDEXES/BARWHEAT_BARLEY_NRGENE_plus_WHEAT_2k17.fa    /home/paolo/Documenti/BOWTIE2/bowtie2-2.2.7/INDEXES/BARWHEAT_BARLEY_NRGENE_plus_WHEAT_2k17
+
+#,.-<18mar16
+PF_minia("18mar16")
+
+
+
+
+
+######################  tophat BARWHEAT MM  ---   orzoNRGene 26ott17-----------------
+######################  tophat BARWHEAT MM  ---   orzoNRGene 26ott17-----------------
+######################  tophat BARWHEAT MM 0-------------------------------
+######################  tophat BARWHEAT MM 0--- --------------------------
+######################  tophat BARWHEAT MM 0--------------------------------
+######################  tophat BARWHEAT MM 0-------------------------------
+
+###################### parto con PE  26ott17 BRWHEAT NRGENE
+dir_fastq= '/media/paolo/MyBook1/WHEAT_CR_rodrig_2016/raw_seq'
+
+
+
+for (OUTPUT_DIRect in c('/media/paolo/Elements/WHEAT_CR_ago2017/PE/tophat-2.1.1_BARWHEAT_NRGENE_PE_0MM',
+                        '/media/paolo/Elements/WHEAT_CR_ago2017/PE/tophat-2.1.1_BARWHEAT_NRGENE_PE_1MM',
+                        '/media/paolo/Elements/WHEAT_CR_ago2017/PE/tophat-2.1.1_BARWHEAT_NRGENE_PE_2MM'))
+{
+  #  OUTPUT_DIRect=  '/media/paolo/Elements/WHEAT_CR_ago2017/PE/tophat-2.1.1_BARWHEAT_NRGENE_PE_0MM'
+  
+  OUTPUT_DIR =OUTPUT_DIRect
+  
+  if(OUTPUT_DIRect == '/media/paolo/Elements/WHEAT_CR_ago2017/PE/tophat-2.1.1_BARWHEAT_NRGENE_PE_0MM')  mismacci= 0
+  if(OUTPUT_DIRect == '/media/paolo/Elements/WHEAT_CR_ago2017/PE/tophat-2.1.1_BARWHEAT_NRGENE_PE_1MM')  mismacci= 1
+  if(OUTPUT_DIRect == '/media/paolo/Elements/WHEAT_CR_ago2017/PE/tophat-2.1.1_BARWHEAT_NRGENE_PE_2MM')  mismacci= 2
+  
+  
+  dir.create(OUTPUT_DIR )
+  
+  dir_per_bash_script = '/home/paolo/Documenti/AAA_wheat_CR_RODR/bash_scripts/'
+  dir.create(dir_per_bash_script)
+  
+  lista_files= NULL
+  directories_con_campioni=NULL
+  cmd=NULL
+  directory= NULL
+  NOMI_lista_files= NULL
+  nomi_strippati=NULL
+  
+  ora= chartr(":", ".", paste( unlist(strsplit(format(Sys.time(), "%Y %b %d :%H:%M")," ")), collapse=""))
+  
+  nome_file_bash_tophat =paste0(dir_per_bash_script,basename(OUTPUT_DIRect),"_", ora, ".sh")
+  
+  for (patterno in c("FERT_3_l1", "FERT_5_l1", "STER_4_l1","STER_9_l1"))
+    
+  {
+    
+    
+    lista_files =list.files(path=  dir_fastq ,  pattern=  patterno  ,recursive =F, full.names=T)
+    NOMI_lista_files=basename(lista_files)
+    nomi_strippati  =  str_replace( NOMI_lista_files, ".fq.gz", "") [1]
+    
+    
+    pasted_spaced_lista_files = paste( lista_files, collapse= "   ")
+    
+    
+    ref_bowtie= "/home/paolo/Documenti/BOWTIE2/bowtie2-2.2.7/INDEXES/BARWHEAT_BARLEY_NRGENE_plus_WHEAT_2k17"
+    
+    
+    #in sequenza faccio 2, 0 e 1 MM
+    
+    cmd = paste0("tophat   --num-threads 7  " , 
+                 "  --phred64-quals  ", 
+                 
+                 "  --read-mismatches " , mismacci,
+                 
+                 "  --no-coverage-search  ",
+                 "  --min-intron-length 40 --max-intron-length 50000  ",
+                 "  --output-dir ", OUTPUT_DIR ,"/",patterno,"  ",
+                 ref_bowtie, "  ", pasted_spaced_lista_files,"\n\n")
+    
+    
+    cat( cmd, file =nome_file_bash_tophat, append=T)
+  }
+}
+
+
+export PATH=/usr/bin/jre1.8.0_144/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/home/paolo/Documenti/SAMTOOLS/samtools-0.1.19:/home/paolo/Documenti/BOWTIE2/bowtie2-2.2.7:/home/paolo/Documenti/TOPHAT2/tophat-2.1.1.Linux_x86_64
+
+
+# corro tutti e 3  27ott17 (ma poi interrompo alcuni e riprendo)
+
+bash  /home/paolo/Documenti/AAA_wheat_CR_RODR/bash_scripts/tophat-2.1.1_BARWHEAT_NRGENE_PE_0MM_2017ott26.21.02.sh
+bash  /home/paolo/Documenti/AAA_wheat_CR_RODR/bash_scripts/tophat-2.1.1_BARWHEAT_NRGENE_PE_1MM_2017ott26.21.02.sh 
+bash   /home/paolo/Documenti/AAA_wheat_CR_RODR/bash_scripts/tophat-2.1.1_BARWHEAT_NRGENE_PE_2MM_2017ott26.21.02.sh
+
