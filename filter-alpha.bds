@@ -1,0 +1,9 @@
+#!/usr/bin/env bds
+string functional_annotation = "data/genomes/iwgsc_refseqv1.0_FunctionalAnnotation_v1__HCgenes_v1.0.TAB"
+string functional_annotation_filtered = "data/genomes/alpha_gliadins.functional.csv"
+string annotation = "/home/juan/Desktop/juan/bio/data/IWGSC/42/Triticum_aestivum.IWGSC.42.clean.gff3"
+string genome = "/home/juan/Desktop/juan/bio/data/IWGSC/42/Triticum_aestivum.IWGSC.dna.toplevel.fa"
+
+
+sys grep -i "Alpha-gliadin" $functional_annotation > $functional_annotation_filtered
+
