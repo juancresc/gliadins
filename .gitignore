@@ -4,3 +4,5 @@ sw/
 *.chp
 assembly.bds*
 bds.pid.*
+.ipynb_checkpoints/
+__pycache__/
