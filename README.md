@@ -50,3 +50,11 @@ Imagino que tendrán algun contacto que les pueda dar alguna asistencia para el 
 Cualquier cosa estamos en contacto.
 Saludos,
 Mónica
+
+
+
+
+#dependencies
+## fastqc
+sudo ln -s /home/juan/Desktop/juan/bio/gliadinas/sw/FastQC/fastqc /usr/local/bin/fastqc
+
